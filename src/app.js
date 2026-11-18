@@ -5,6 +5,8 @@ import "./config/passport.config.js";
 import productsRouter from "./routes/products.router.js";
 import sessionsRouter from "./routes/sessions.router.js";
 import usersRouter from "./routes/users.router.js";
+import mocksRouter from "./routes/mocks.router.js";
+import { config } from "./config/index.js";
 import { errorHandler } from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -21,6 +23,11 @@ app.get("/api/health", (req, res) => {
 app.use("/api/products", productsRouter);
 app.use("/api/sessions", sessionsRouter);
 app.use("/api/users", usersRouter);
+
+// Herramienta de desarrollo: no se expone en producción.
+if (!config.isProduction) {
+  app.use("/api/mocks", mocksRouter);
+}
 
 app.use((req, res) => {
   res.status(404).json({ status: "error", message: "Ruta no encontrada" });

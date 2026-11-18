@@ -14,6 +14,11 @@ export const ERROR_STATUS_MAP = {
   INVALID_STATUS: 400,
   PRODUCT_EXISTS: 409,
   PRODUCT_NOT_FOUND: 404,
+  // mocks
+  INVALID_QTY: 400,
+  INVALID_ROLE: 400,
+  NO_CUSTOMERS: 400,
+  NO_DRIVERS: 400,
 };
 
 // Middleware de errores de Express: se reconoce por tener 4 parámetros.

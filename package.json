@@ -10,6 +10,7 @@
     "seed": "node src/utils/seed.js"
   },
   "dependencies": {
+    "@faker-js/faker": "^10.6.0",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.6.1",

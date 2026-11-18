@@ -2,7 +2,7 @@
 
 API REST de **ShipNow**, refactorizada a una arquitectura profesional por capas (**Router → Controller → Service → Repository → Model**) con configuración de entorno validada al arranque y un diccionario de constantes para roles y estados.
 
-Entidades refactorizadas: **Products** y **Users**.
+Entidades: **Products**, **Users**, **Orders** y **Deliveries**.
 
 ## Tecnologías
 
@@ -57,8 +57,12 @@ También valida que `PORT` sea un entero positivo y que `NODE_ENV` tenga un valo
 `src/constants/index.js` define con `Object.freeze` los valores fijos del negocio, sin strings sueltos por el código:
 
 ```js
-USER_ROLES        // ADMIN, USER
+USER_ROLES        // ADMIN, USER (cliente), DRIVER (repartidor)
 PRODUCT_STATUS    // AVAILABLE, OUT_OF_STOCK
+ORDER_STATUS      // CREATED, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, CANCELLED
+DELIVERY_STATUS   // ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED
+DELIVERY_PRIORITY // LOW, NORMAL, HIGH, URGENT
+MOCK_LIMITS       // DEFAULT_QTY (10), MAX_QTY (100)
 NODE_ENVIRONMENTS // DEVELOPMENT, PRODUCTION, TEST
 ```
 
@@ -169,6 +173,67 @@ El middleware `error.middleware.js` traduce errores de negocio (`ServiceError` c
 | 409 | Conflicto (email ya registrado, nombre de producto repetido) |
 | 500 | Error interno no controlado |
 
+## Mocking y carga de datos de prueba (Módulo 2)
+
+Router `/api/mocks`, pensado solo para desarrollo: **no se monta si `NODE_ENV=production`** (responde 404). Usa `@faker-js/faker` en español y respeta la arquitectura por capas:
+
+```
+mocks.router → mocks.controller → mocks.service → repositories (users / orders / deliveries)
+                                       ↓
+                                  src/mocks/ (generadores puros, no tocan la base)
+```
+
+### Qué datos se generan
+
+- **Usuarios**: `first_name`, `last_name`, `email` (`@test.com`), `role` (`USER` o `DRIVER`). Los repartidores llevan `isAvailable`. La contraseña de todos los usuarios insertados es `coder123` (guardada hasheada con bcrypt).
+- **Pedidos**: `customer` (usuario real), `items` (nombre, cantidad, precio), `deliveryAddress`, `total` (suma de los items), `status` (`ORDER_STATUS`) y `priority` (`DELIVERY_PRIORITY`).
+- **Entregas**: `order` (pedido real), `driver` (usuario con rol `DRIVER`), `status` (el que corresponde al estado del pedido) y `priority` (la del pedido). Solo los pedidos asignados, retirados, en tránsito o entregados tienen entrega; uno `CREATED` o `CANCELLED` no.
+
+### Endpoints que NO guardan en la base
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/mocks/users?qty=2` | Usuarios falsos (mezcla de clientes y repartidores). Opcional: `&role=driver` o `&role=user`. Alias: `/mockingusers` |
+| GET | `/api/mocks/orders?qty=3` | Pedidos falsos con ids de cliente inventados. Alias: `/mockingorders` |
+| GET | `/api/mocks/deliveries?qty=3` | Entregas falsas, cada una asociada a un pedido y a un repartidor inventados |
+
+`qty` es opcional (por defecto 10, máximo 100).
+
+### Endpoints que SÍ insertan en MongoDB
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/mocks/seed?qty=10` | Inserta 10 usuarios (clientes y repartidores). Responde `{ "insertados": 10, "coleccion": "users" }` |
+| POST | `/api/mocks/generateData` | Inserta usuarios, repartidores, pedidos y entregas relacionados entre sí |
+
+Body de `generateData` (todos opcionales, enteros de 0 a 100, al menos uno mayor a 0):
+
+```json
+{ "users": 5, "drivers": 3, "orders": 20, "deliveries": 8 }
+```
+
+Respuesta `201`:
+
+```json
+{ "status": "success", "insertados": { "users": 5, "drivers": 3, "orders": 20, "deliveries": 8 } }
+```
+
+Reglas: se crean en orden (usuarios → pedidos → entregas) para que las relaciones sean reales. Los pedidos usan los clientes recién creados o, si no se pidió ninguno, los que ya existan en la base. Las entregas usan repartidores nuevos o existentes. No puede haber más entregas que pedidos. Si no hay clientes o repartidores disponibles, responde `400` con un mensaje claro.
+
+### Cómo probarlo
+
+```bash
+npm run dev
+# ver datos falsos (no guarda nada)
+curl "http://localhost:8080/api/mocks/users?qty=2"
+# cargar datos de prueba
+curl -X POST http://localhost:8080/api/mocks/generateData \
+  -H "Content-Type: application/json" \
+  -d '{"users":5,"drivers":3,"orders":20,"deliveries":8}'
+```
+
+Después se pueden ver las colecciones `users`, `orders` y `deliveries` en MongoDB Atlas o Compass.
+
 ## Estructura del proyecto
 
 ```
@@ -181,7 +246,8 @@ src/
 │   ├── db.config.js          # abre/cierra la conexión a MongoDB
 │   └── passport.config.js    # estrategias register / login / current
 ├── constants/index.js        # USER_ROLES, PRODUCT_STATUS, NODE_ENVIRONMENTS (Object.freeze)
-├── models/                   # User.js, Product.js (solo esquemas)
+├── models/                   # User, Product, Order, Delivery (solo esquemas)
+├── mocks/                    # generadores de datos falsos (users, orders, deliveries)
 ├── repositories/             # único lugar que habla con Mongoose
 ├── services/                 # lógica de negocio
 ├── controllers/              # solo HTTP: req → service → res

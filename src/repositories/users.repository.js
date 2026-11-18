@@ -34,3 +34,17 @@ export const findUserById = async (id) => {
   if (!isValidId(id)) return null;
   return User.findById(id).select(PUBLIC_PROJECTION).lean();
 };
+
+const withoutPassword = (doc) => {
+  const { password, ...rest } = doc.toObject({ versionKey: false });
+  return rest;
+};
+
+export const insertManyUsers = async (usersData) => {
+  const docs = await User.insertMany(usersData);
+  return docs.map(withoutPassword);
+};
+
+export const findUsersByRole = (role) => {
+  return User.find({ role }).select(PUBLIC_PROJECTION).lean();
+};
