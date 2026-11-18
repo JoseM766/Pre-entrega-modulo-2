@@ -1,4 +1,4 @@
-# ShipNow — API Backend (Pre-entrega Módulo 1)
+# ShipNow — API Backend (Pre-entrega Módulo 2)
 
 API REST de **ShipNow**, refactorizada a una arquitectura profesional por capas (**Router → Controller → Service → Repository → Model**) con configuración de entorno validada al arranque y un diccionario de constantes para roles y estados.
 
